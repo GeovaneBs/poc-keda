@@ -1,0 +1,52 @@
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: rabbitmq-trigger-auth
+spec:
+  secretTargetRef:
+    - parameter: host
+      name: rabbitmq-conn-secret
+      key: host
+    - parameter: username
+      name: rabbitmq-conn-secret
+      key: username
+    - parameter: password
+      name: rabbitmq-conn-secret
+      key: password
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rabbitmq-conn-secret
+type: Opaque
+stringData:
+  host: "amqp://rabbitmq-cluster.poc-keda.svc.cluster.local:5672"
+  username: "guest"
+  password: "guest"
+
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: rabbitmq-scaledobject
+spec:
+  scaleTargetRef:
+    name: api-estudo-devops # Nome do deployment a ser escalado
+  minReplicaCount: 1 # Mínimo de réplicas
+  maxReplicaCount: 10 # Máximo de réplicas
+  pollingInterval: 30 # Intervalo de verificação (segundos)
+  cooldownPeriod: 300 # Período de resfriamento após downscale
+  triggers:
+    - type: rabbitmq
+      metadata:
+        protocol: amqp # Protocolo: amqp ou http
+        queueName: fila-a-poc # Nome da fila a ser monitorada
+        mode: QueueLength # Modo: QueueLength ou MessageRate
+        value: "5" # Valor alvo (5 mensagens por réplica)
+        activationValue: "1" # Valor de ativação (1 mensagem para escalar de 0 para 1)
+      authenticationRef:
+        name: rabbitmq-trigger-auth # Referência à TriggerAuthentication
+    - type: cpu
+      metadata:
+        type: Utilization
+        value: "70"
